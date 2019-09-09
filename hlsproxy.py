@@ -7,6 +7,8 @@ from sys import argv
 from pprint import pformat
 import argparse
 import re
+import time
+import datetime
 
 import subprocess
 
@@ -71,6 +73,7 @@ class HlsPlaylist:
         self.version = 0
         self.targetDuration = 0
         self.mediaSequence = 0
+        #self.mediaSequence = int(time.time()*100.0)
         self.items = []
         self.variants = []
         self.medias = []
@@ -123,6 +126,8 @@ class HlsPlaylist:
                     lineIdx += 1
                 elif key == "#EXT-X-MEDIA":
                     self.handleMedia(value)
+                elif key == "#EXT-X-PROGRAM-DATE-TIME":
+                    pass
                 elif key == "#EXTINF":
                     dur = float(value.split(',')[0])
                     url = lines[lineIdx]
@@ -296,7 +301,7 @@ class HttpReqQ:
 
     def _processQ(self):
         if not(self.busy) and len(self.q) > 0:
-            print("Processing a new request from the queue")
+            #print("Processing a new request from the queue")
             req = self.q.pop(0)
             dAdapter = self.agent.request(req.method,
                               req.url,
@@ -337,7 +342,8 @@ class HlsProxy:
     def setOutDir(self, outDir):
         outDir = outDir.strip()
         if len(outDir) > 0:
-            self.outDir = outDir + '/'
+            #self.outDir = outDir + '/'
+            self.outDir = outDir + "/"
 
     def run(self, hlsPlaylist):
         self.finished = defer.Deferred()
@@ -370,13 +376,17 @@ class HlsProxy:
         return self.outDir + self.getSegmentRelativeUrl(item)
 
     def getSegmentRelativeUrl(self, item):
+        #curr_timestamp = int(time.time()*100.0)
         return "stream" + str(item.mediaSequence) + ".ts"
+        #return str(int(time.time()*100.0)) + "_" + str(item.mediaSequence) + ".ts"
 
     def getClientPlaylist(self):
-        return self.outDir + "stream.m3u8"
+        #return self.outDir + "stream.m3u8"
+        return self.outDir + "%s.m3u8" % (str(self.playlist_name))
 
     def get_individial_client_playlist(self, media_sequence):
-        return self.outDir + "stream." + str(media_sequence) + ".m3u8"
+        #return self.outDir + "stream." + str(media_sequence) + ".m3u8"
+        return self.outDir + str(self.stream_name) + str(media_sequence) + ".m3u8"
 
     def onPlaylist(self, playlist):
         if playlist.isValid():
@@ -427,7 +437,8 @@ class HlsProxy:
         masterPlaylist.version = playlist.version
 
         for variant in playlist.variants:
-            subOutDir = self.outDir + str(variant.bandwidth)
+            #subOutDir = self.outDir + str(variant.bandwidth)
+            subOutDir = self.outDir
             print "Starting a sub hls-proxy for channel with bandwith ", variant.bandwidth, " in directory ", subOutDir
             make_p(subOutDir)
             
@@ -461,6 +472,7 @@ class HlsProxy:
         subProxy.download = self.download
         subProxy.referer = self.referer
         subProxy.dump_durations = self.dump_durations
+        subProxy.playlist_name = self.playlist_name
         subProxy.save_individual_playlists = self.save_individual_playlists
         subProxy.setOutDir(subOutDir)
         d = subProxy.run(hlsUrl)
@@ -468,7 +480,8 @@ class HlsProxy:
         return subProxy
 
     def writeFile(self, filename, content):
-        print 'cwd=', os.getcwd(), ' writing file', filename
+        #print 'cwd=', os.getcwd(), ' writing file', filename
+        print("Writing file: " + filename)
         f = open(filename, 'w')
         f.write(content)
         f.flush()
@@ -512,7 +525,7 @@ class HlsProxy:
                 ritem.relativeUrl = self.getSegmentRelativeUrl(item)
                 pl.items.append(ritem)
             else:
-                print "Stopping playlist generation on itemFilename=", itemFilename
+                #print "Stopping playlist generation on itemFilename=", itemFilename
                 break
         self.writeFile(self.getClientPlaylist(), pl.toStr())
         if self.save_individual_playlists:
@@ -598,6 +611,7 @@ def runProxy(reactor, args):
     proxy.download = args.d
     proxy.referer = args.referer
     proxy.dump_durations = args.dump_durations
+    proxy.playlist_name = "out"
     proxy.save_individual_playlists = args.save_individual_playlists
     if not(args.o is None):
         proxy.setOutDir(args.o)
